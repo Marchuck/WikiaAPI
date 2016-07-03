@@ -2,14 +2,21 @@ package pl.marchuck.wikiaapi;
 
 
 import android.os.Bundle;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import okhttp3.ResponseBody;
+import retrofit2.Response;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
 
 
 public class SearchFragment extends Fragment {
@@ -59,7 +66,9 @@ public class SearchFragment extends Fragment {
                 .onStartSuggest(new SuggestionEngine.StartActionListener() {
                     @Override
                     public void onStartSearch() {
+                        Log.d(TAG, "onStartSearch: ");
                         showProgressBar(true);
+                        searchView.animate().alpha(1f).setDuration(300).start();
                     }
                 }).afterSuggest(new SuggestionEngine.ResultCallback<String>() {
             @Override
@@ -72,30 +81,34 @@ public class SearchFragment extends Fragment {
         }).init();
 
 
-        /*FloatingActionButton fab = (FloatingActionButton) v.findViewById(R.id.fab);
+       final  FloatingActionButton fab = (FloatingActionButton) v.findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                SearchableAPI.getRxApi().getSuggestions("Kis")
+                RestifyClient.postUser("JeanClaudeVanDamme", "no_pass")
                         .subscribeOn(Schedulers.newThread())
                         .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(new SuggestionEngine.VerboseSubscriber<SearchableAPI.SearchResponse>(TAG) {
+                        .subscribe(new SuggestionEngine.VerboseSubscriber<ResponseBody>(TAG) {
                             @Override
-                            public void onNext(SearchableAPI.SearchResponse searchResponse) {
-                                Log.d(TAG, "onNext: " + listToString(searchResponse.getItems()));
-                                Toast.makeText(getActivity(), searchResponse.getItems().get(0).getTitle(),
-                                        Toast.LENGTH_SHORT).show();
-
+                            public void onNext(ResponseBody searchResponse) {
+                                Log.d(TAG, "onNext: " + searchResponse.toString());
+                                try {
+                                    Log.d(TAG, "onNext: " + searchResponse.string());
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                fab.setAlpha(0f);
+                                fab.animate().alpha(1).setDuration(300).start();
                             }
 
                             @Override
                             public void onError(Throwable e) {
                                 super.onError(e);
-                                Toast.makeText(getActivity(), e.getMessage(), Toast.LENGTH_SHORT).show();
+                                // Toast.makeText(getActivity(), e.getMessage(), Toast.LENGTH_SHORT).show();
                             }
                         });
             }
-        });*/
+        });
 
         return v;
     }
@@ -123,10 +136,23 @@ public class SearchFragment extends Fragment {
         return sb.toString();
     }
 
+    private WeakHandler weakHandler = new WeakHandler();
+    private final Runnable cleanSuggestionsRunnable = new Runnable() {
+        @Override
+        public void run() {
+            adapter.updateDataset(new ArrayList<String>());
+            searchView.setAdapter(adapter);
+            searchView.setAlpha(1f);
+
+        }
+    };
+
     public boolean hideSuggestions() {
         if (adapter.dataSet.isEmpty()) return false;
-        adapter.updateDataset(new ArrayList<String>());
-        searchView.setAdapter(adapter);
+
+        weakHandler.removeCallbacks(cleanSuggestionsRunnable);
+        weakHandler.postDelayed(cleanSuggestionsRunnable, 300);
+        searchView.animate().alpha(0f).setDuration(300).start();
         return true;
 
     }
